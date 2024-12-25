@@ -14,7 +14,7 @@ The project uses environment variables to configure AWS settings. These variable
 
 ## Building and Running
 
-To build the project, use the following command:
+To build the project for deployment, use the following command:
 
 ```sh
 GOOS=linux GOARCH=arm64 go build -tags lambda.norpc -o bootstrap cmd/main.go
