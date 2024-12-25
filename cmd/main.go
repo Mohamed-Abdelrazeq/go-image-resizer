@@ -2,30 +2,28 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"fmt"
 	"image"
 	"log"
-	"net/http"
 	"os"
 	"strconv"
 
 	"image/jpeg"
 
+	"github.com/aws/aws-lambda-go/events"
+	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/aws/aws-sdk-go/service/sqs"
-	"github.com/gin-gonic/gin"
-	"github.com/joho/godotenv"
 	"github.com/nfnt/resize"
 )
 
 var (
 	s3Session     *s3.S3
-	sqsSession    *sqs.SQS
 	bucket        string
 	resizedBucket string
-	queueURL      string
 )
 
 func initAWS() {
@@ -37,65 +35,24 @@ func initAWS() {
 		),
 	)
 	s3Session = s3.New(sess)
-	sqsSession = sqs.New(sess)
 	bucket = os.Getenv("AWS_BUCKET_NAME")
 	resizedBucket = os.Getenv("AWS_RESIZED_BUCKET_NAME")
-	queueURL = os.Getenv("AWS_SQS_QUEUE_URL")
 }
 
-func main() {
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("Error loading .env file")
-	}
-	initAWS()
-
-	r := gin.Default()
-	r.GET("/health", health)
-
-	go pollSQS()
-
-	r.Run(":8888")
-}
-
-func health(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"status": "OK",
-	})
-}
-
-func pollSQS() {
-	for {
-		result, err := sqsSession.ReceiveMessage(&sqs.ReceiveMessageInput{
-			QueueUrl:            aws.String(queueURL),
-			MaxNumberOfMessages: aws.Int64(10),
-			WaitTimeSeconds:     aws.Int64(20),
-		})
-		if err != nil {
-			log.Println("Error receiving message from SQS:", err)
+func handler(ctx context.Context, sqsEvent events.SQSEvent) error {
+	for _, message := range sqsEvent.Records {
+		var msgBody S3Event
+		err := json.Unmarshal([]byte(message.Body), &msgBody)
+		if err != nil || len(msgBody.Records) == 0 {
+			log.Println("Error unmarshalling message body:", err)
 			continue
 		}
 
-		for _, message := range result.Messages {
-			// Unmarshal the message body
-			var msgBody S3Event
-			err := json.Unmarshal([]byte(*message.Body), &msgBody)
-			if err != nil {
-				log.Println("Error unmarshalling message body:", err)
-				continue
-			}
+		fmt.Println("Body: ", msgBody.Records)
 
-			resizeOperation(msgBody.Records[0].S3.Object.Key)
-			// Delete the message from the queue
-			_, err = sqsSession.DeleteMessage(&sqs.DeleteMessageInput{
-				QueueUrl:      aws.String(queueURL),
-				ReceiptHandle: message.ReceiptHandle,
-			})
-			if err != nil {
-				log.Println("Error deleting message from SQS:", err)
-			}
-		}
+		resizeOperation(msgBody.Records[0].S3.Object.Key)
 	}
+	return nil
 }
 
 func downloadImage(key string) ([]byte, error) {
@@ -146,9 +103,8 @@ func resizeImage(imageData []byte, key string) {
 func uploadImage(imageData []byte, size uint, key string) error {
 	_, err := s3Session.PutObject(&s3.PutObjectInput{
 		Bucket: aws.String(resizedBucket),
-		Key:    aws.String("resized/" + key + "/" + strconv.Itoa(int(size)) + ".jpg"),
+		Key:    aws.String(key + "/" + strconv.Itoa(int(size)) + ".jpg"),
 		Body:   bytes.NewReader(imageData),
-		ACL:    aws.String("public-read"),
 	})
 	return err
 }
@@ -214,4 +170,9 @@ type S3Object struct {
 	Size      int    `json:"size"`
 	ETag      string `json:"eTag"`
 	Sequencer string `json:"sequencer"`
+}
+
+func main() {
+	initAWS()
+	lambda.Start(handler)
 }
