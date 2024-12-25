@@ -26,6 +26,10 @@ To run the project locally, you can use the air tool for live reloading. Ensure 
 air
 ```
 
+Note: This command only works in local development without the Lambda formatted project.
+
+
+
 # AWS Lambda Deployment
 The project is designed to be deployed as an AWS Lambda function. Ensure you have the AWS CLI installed and configured. Then, package and deploy the Lambda function using the AWS CLI or any other deployment tool of your choice.
 
