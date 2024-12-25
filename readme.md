@@ -30,16 +30,16 @@ Note: This command only works in local development without the Lambda formatted 
 
 
 
-# AWS Lambda Deployment
+## AWS Lambda Deployment
 The project is designed to be deployed as an AWS Lambda function. Ensure you have the AWS CLI installed and configured. Then, package and deploy the Lambda function using the AWS CLI or any other deployment tool of your choice.
 
-# Usage
+## Usage
 The Lambda function listens for SQS events that contain information about new images uploaded to the S3 bucket. When an image is uploaded, the function:
 
 Downloads the image from the S3 bucket.
 Resizes the image to predefined sizes (100px, 500px, 1000px).
 Uploads the resized images to the resized S3 bucket.
-# Dependencies
+## Dependencies
 The project relies on several Go packages, including:
 - github.com/aws/aws-lambda-go
 - github.com/aws/aws-sdk-go
@@ -47,5 +47,5 @@ The project relies on several Go packages, including:
 - github.com/gin-gonic/gin
 For a full list of dependencies, see the go.mod file.
 
-License
+## License
 This project is licensed under the MIT License.
